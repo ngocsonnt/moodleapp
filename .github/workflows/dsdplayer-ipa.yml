@@ -58,13 +58,11 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Info.plist (generated)"
-          if [ -f DSDPlayer/Resources/Info.plist ]; then
-            cat DSDPlayer/Resources/Info.plist
-          elif [ -f Resources/Info.plist ]; then
-            cat Resources/Info.plist
+          if [ -f Info.plist ]; then
+            cat Info.plist
           else
-            echo "(no Info.plist found at expected paths)"
-            find . -name Info.plist -not -path "*/build/*" -not -path "*/DerivedData/*"
+            echo "(no Info.plist at DSDPlayer/Info.plist)"
+            find . -name Info.plist -not -path "*/build/*" -not -path "*/DerivedData/*" -not -path "*/.git/*"
           fi
           echo "::endgroup::"
 
@@ -117,8 +115,7 @@ jobs:
           path: |
             DSDPlayer/run.log
             DSDPlayer/DSDPlayer.xcodeproj/project.pbxproj
-            DSDPlayer/Resources/Info.plist
-            DSDPlayer/DSDPlayer/Resources/Info.plist
+            DSDPlayer/Info.plist
           if-no-files-found: warn
 
       - name: Upload IPA artifact
@@ -130,8 +127,33 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+      - name: Dump run.log to step summary
+        if: always()
+        shell: bash
+        working-directory: DSDPlayer
+        run: |
+          {
+            echo "## DSDPlayer build log (outcome: ${{ steps.build.outcome }})"
+            echo ""
+            echo '<details><summary>Last 400 lines of run.log</summary>'
+            echo ""
+            echo '```'
+            tail -n 400 run.log 2>/dev/null || echo "(no run.log)"
+            echo '```'
+            echo ""
+            echo '</details>'
+            echo ""
+            if [ -f run.log ]; then
+              echo "### Errors / warnings"
+              echo ""
+              echo '```'
+              grep -E "(error:|warning:|BUILD FAILED|fatal|Undefined symbol)" run.log | head -n 80 || echo "(no error lines matched)"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Mark job failed if build failed
         if: steps.build.outcome == 'failure'
         run: |
-          echo "::error::Build step failed - check run.log artifact"
+          echo "::error::Build step failed - see job summary or run.log artifact"
           exit 1

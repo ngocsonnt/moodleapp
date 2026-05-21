@@ -28,7 +28,7 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
     info:
-      path: DSDPlayer/Resources/Info.plist
+      path: Info.plist
       properties:
         CFBundleDisplayName: DSD Player
         CFBundleShortVersionString: $(MARKETING_VERSION)
