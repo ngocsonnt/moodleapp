@@ -1,0 +1,93 @@
+name: DSDPlayer IPA
+
+on:
+  push:
+    branches:
+      - claude/dsd-music-player-app-ywOc8
+    paths:
+      - "DSDPlayer/**"
+      - ".github/workflows/dsdplayer-ipa.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build unsigned IPA (for SideStore / AltStore)
+    runs-on: macos-14
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: DSDPlayer
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build (no code signing)
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project DSDPlayer.xcodeproj \
+            -scheme DSDPlayer \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            DEVELOPMENT_TEAM="" \
+            ONLY_ACTIVE_ARCH=NO \
+            build
+
+      - name: Package .ipa
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 2 -name '*.app' -type d | head -n1)
+          if [ -z "${APP_PATH}" ]; then
+            echo "::error::No .app bundle produced by xcodebuild"
+            find build/Build/Products -maxdepth 3 -type d
+            exit 1
+          fi
+          echo "Found app at: ${APP_PATH}"
+
+          rm -rf Payload DSDPlayer.ipa
+          mkdir Payload
+          cp -R "${APP_PATH}" Payload/
+
+          # SideStore re-signs on install, so we ship completely unsigned.
+          codesign --remove-signature "Payload/$(basename "${APP_PATH}")" 2>/dev/null || true
+          find "Payload/$(basename "${APP_PATH}")" -name "_CodeSignature" -type d -exec rm -rf {} + 2>/dev/null || true
+          find "Payload/$(basename "${APP_PATH}")" -name "embedded.mobileprovision" -delete 2>/dev/null || true
+
+          zip -qry DSDPlayer.ipa Payload
+          ls -lh DSDPlayer.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSDPlayer-IPA
+          path: DSDPlayer/DSDPlayer.ipa
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          {
+            echo "## DSDPlayer.ipa ready"
+            echo ""
+            echo "**Download:** scroll to the bottom of this run page, under *Artifacts*."
+            echo ""
+            echo "**Install on iPhone with SideStore:**"
+            echo "1. Open the artifact zip on iPhone (Safari -> share -> Save to Files)."
+            echo "2. Unzip in the Files app, then long-press the .ipa -> Share -> SideStore."
+            echo "3. SideStore signs with your free Apple ID and installs. Re-open SideStore every 7 days to refresh."
+          } >> "$GITHUB_STEP_SUMMARY"

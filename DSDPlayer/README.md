@@ -51,6 +51,15 @@ DSDPlayer/
 
 ## Cách build
 
+### Đang dùng iPhone, không có Mac?
+
+Xem [`INSTALL_IPHONE.md`](INSTALL_IPHONE.md). Tóm tắt: GitHub Actions
+(`.github/workflows/dsdplayer-ipa.yml`) tự build IPA mỗi lần push, anh
+tải IPA về iPhone qua Safari rồi cài bằng **SideStore** với Apple ID
+miễn phí.
+
+### Có Mac
+
 Cần **macOS + Xcode 15+** và `xcodegen`.
 
 ```bash
