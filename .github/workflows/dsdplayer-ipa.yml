@@ -35,10 +35,17 @@ jobs:
           xcodebuild -showsdks | head -50
           echo "::endgroup::"
 
-          echo "::group::install xcodegen"
-          if ! command -v xcodegen >/dev/null 2>&1; then
-            brew install xcodegen
-          fi
+          echo "::group::install xcodegen (pinned)"
+          XCG_VERSION="2.40.1"
+          curl -fsSL "https://github.com/yonaskolb/XcodeGen/releases/download/${XCG_VERSION}/xcodegen.zip" \
+            -o /tmp/xcodegen.zip
+          unzip -q /tmp/xcodegen.zip -d /tmp/xcg
+          ls -R /tmp/xcg
+          # The release ships as /tmp/xcg/xcodegen/{bin,share,Licenses}.
+          # Run via the bundled bin so it can find its share/ resources.
+          XCG_BIN="/tmp/xcg/xcodegen/bin/xcodegen"
+          chmod +x "$XCG_BIN"
+          xcodegen() { "$XCG_BIN" "$@"; }
           xcodegen --version
           echo "::endgroup::"
 
