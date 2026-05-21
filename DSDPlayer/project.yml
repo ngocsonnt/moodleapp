@@ -15,6 +15,7 @@ targets:
       - path: DSDPlayer
         excludes:
           - "**/.DS_Store"
+          - "Resources/Info.plist"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.DSDPlayer
@@ -43,7 +44,7 @@ targets:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        UISupportedInterfaceOrientations~ipad:
+        "UISupportedInterfaceOrientations~ipad":
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft

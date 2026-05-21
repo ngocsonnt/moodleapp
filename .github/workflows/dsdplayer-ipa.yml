@@ -12,27 +12,52 @@ on:
 jobs:
   build:
     name: Build unsigned IPA (for SideStore / AltStore)
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 30
     defaults:
       run:
         working-directory: DSDPlayer
+        shell: bash
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show Xcode version
-        run: xcodebuild -version
+      - name: Pin Xcode (latest stable available on runner)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Diagnostics
+        run: |
+          set -x
+          uname -a
+          sw_vers
+          sudo xcode-select -p
+          xcodebuild -version
+          xcodebuild -showsdks
+          which xcodegen || true
 
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
 
       - name: Generate Xcode project
-        run: xcodegen generate
+        run: |
+          set -x
+          xcodegen generate
+          ls -la
+          test -d DSDPlayer.xcodeproj || { echo "::error::xcodegen did not produce DSDPlayer.xcodeproj"; exit 1; }
+          xcodebuild -list -project DSDPlayer.xcodeproj
+          test -f Resources/Info.plist || ls Resources
 
       - name: Build (no code signing)
+        id: build
+        continue-on-error: true
         run: |
-          set -euo pipefail
+          set -o pipefail
           xcodebuild \
             -project DSDPlayer.xcodeproj \
             -scheme DSDPlayer \
@@ -40,15 +65,41 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            clean build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
             DEVELOPMENT_TEAM="" \
             ONLY_ACTIVE_ARCH=NO \
-            build
+            2>&1 | tee xcodebuild.log
+
+      - name: Upload xcodebuild log (always)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xcodebuild-log
+          path: |
+            DSDPlayer/xcodebuild.log
+            DSDPlayer/DSDPlayer.xcodeproj/project.pbxproj
+            DSDPlayer/Resources/Info.plist
+          if-no-files-found: warn
+
+      - name: Surface build errors from log
+        if: steps.build.outcome == 'failure'
+        run: |
+          echo "::group::Last 200 lines"
+          tail -n 200 xcodebuild.log || true
+          echo "::endgroup::"
+          echo "::group::error/warning lines"
+          grep -E "(error:|warning:|note:|BUILD FAILED|Code Sign error)" xcodebuild.log | head -n 100 || true
+          echo "::endgroup::"
+          exit 1
 
       - name: Package .ipa
+        if: steps.build.outcome == 'success'
         run: |
           set -euo pipefail
           APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 2 -name '*.app' -type d | head -n1)
@@ -72,6 +123,7 @@ jobs:
           ls -lh DSDPlayer.ipa
 
       - name: Upload IPA artifact
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: DSDPlayer-IPA
@@ -80,6 +132,7 @@ jobs:
           if-no-files-found: error
 
       - name: Summary
+        if: steps.build.outcome == 'success'
         run: |
           {
             echo "## DSDPlayer.ipa ready"
