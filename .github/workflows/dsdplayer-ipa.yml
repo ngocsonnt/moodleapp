@@ -53,8 +53,21 @@ jobs:
           fi
           echo "::endgroup::"
 
+          echo "::group::project filesystem"
+          ls -la DSDPlayer.xcodeproj/ 2>&1 || echo "(no xcodeproj dir)"
+          file DSDPlayer.xcodeproj/project.pbxproj 2>&1 || true
+          wc -l DSDPlayer.xcodeproj/project.pbxproj 2>&1 || true
+          echo "--- first 80 lines of project.pbxproj ---"
+          head -80 DSDPlayer.xcodeproj/project.pbxproj 2>&1 || echo "(no project.pbxproj)"
+          echo "::endgroup::"
+
           echo "::group::project listing"
-          xcodebuild -list -project DSDPlayer.xcodeproj || echo "(xcodebuild -list failed but continuing)"
+          xcodebuild -list -project ./DSDPlayer.xcodeproj 2>&1 || echo "(xcodebuild -list failed but continuing)"
+          echo "::endgroup::"
+
+          echo "::group::xcodegen version + plist plugin"
+          xcodegen --version
+          plutil -lint Info.plist 2>&1 || echo "(plutil failed on Info.plist)"
           echo "::endgroup::"
 
           echo "::group::Info.plist (generated)"
@@ -141,11 +154,20 @@ jobs:
           # a GitHub login, so use them as the primary failure signal.
           # macOS ships bash 3.2, so avoid mapfile and stick to a portable
           # while-read loop.
-          grep -nE "(error:|fatal|BUILD FAILED|Undefined symbol|Command .* failed|xcodegen rc=|xcodebuild rc=)" run.log \
-            | head -n 30 \
+          grep -nE "(error:|fatal|BUILD FAILED|Undefined symbol|Command .* failed|xcodegen rc=|xcodebuild rc=|first 80 lines|wc -l|file DSD)" run.log \
+            | head -n 50 \
             | while IFS= read -r line; do
                 esc=$(printf '%s' "$line" | sed -e 's/%/%25/g')
                 echo "::error::${esc}"
+              done
+
+          # Also surface the first lines of project.pbxproj as notices
+          # so we can see what xcodegen actually wrote.
+          awk '/first 80 lines of project.pbxproj/{p=1; next} /^::endgroup::|^---/{p=0} p' run.log \
+            | head -n 20 \
+            | while IFS= read -r line; do
+                esc=$(printf '%s' "$line" | sed -e 's/%/%25/g')
+                echo "::notice::pbxproj: ${esc}"
               done
 
           # Also dump full log to step summary (visible to logged-in users).
