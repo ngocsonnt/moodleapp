@@ -139,14 +139,14 @@ jobs:
 
           # Annotations are visible on the public run page even without
           # a GitHub login, so use them as the primary failure signal.
-          mapfile -t err_lines < <(grep -nE "(error:|fatal|BUILD FAILED|Undefined symbol|Command .* failed|xcodegen rc=|xcodebuild rc=)" run.log | head -n 30)
-          for line in "${err_lines[@]}"; do
-            # Escape so the annotation renders multiline-safe.
-            esc="${line//%/%25}"
-            esc="${esc//$'\n'/%0A}"
-            esc="${esc//$'\r'/%0D}"
-            echo "::error::${esc}"
-          done
+          # macOS ships bash 3.2, so avoid mapfile and stick to a portable
+          # while-read loop.
+          grep -nE "(error:|fatal|BUILD FAILED|Undefined symbol|Command .* failed|xcodegen rc=|xcodebuild rc=)" run.log \
+            | head -n 30 \
+            | while IFS= read -r line; do
+                esc=$(printf '%s' "$line" | sed -e 's/%/%25/g')
+                echo "::error::${esc}"
+              done
 
           # Also dump full log to step summary (visible to logged-in users).
           {
