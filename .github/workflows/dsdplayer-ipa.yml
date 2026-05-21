@@ -127,29 +127,34 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-      - name: Dump run.log to step summary
+      - name: Dump run.log via annotations + step summary
         if: always()
         shell: bash
         working-directory: DSDPlayer
         run: |
+          if [ ! -f run.log ]; then
+            echo "::warning::no run.log produced"
+            exit 0
+          fi
+
+          # Annotations are visible on the public run page even without
+          # a GitHub login, so use them as the primary failure signal.
+          mapfile -t err_lines < <(grep -nE "(error:|fatal|BUILD FAILED|Undefined symbol|Command .* failed|xcodegen rc=|xcodebuild rc=)" run.log | head -n 30)
+          for line in "${err_lines[@]}"; do
+            # Escape so the annotation renders multiline-safe.
+            esc="${line//%/%25}"
+            esc="${esc//$'\n'/%0A}"
+            esc="${esc//$'\r'/%0D}"
+            echo "::error::${esc}"
+          done
+
+          # Also dump full log to step summary (visible to logged-in users).
           {
             echo "## DSDPlayer build log (outcome: ${{ steps.build.outcome }})"
             echo ""
-            echo '<details><summary>Last 400 lines of run.log</summary>'
-            echo ""
             echo '```'
-            tail -n 400 run.log 2>/dev/null || echo "(no run.log)"
+            tail -n 400 run.log
             echo '```'
-            echo ""
-            echo '</details>'
-            echo ""
-            if [ -f run.log ]; then
-              echo "### Errors / warnings"
-              echo ""
-              echo '```'
-              grep -E "(error:|warning:|BUILD FAILED|fatal|Undefined symbol)" run.log | head -n 80 || echo "(no error lines matched)"
-              echo '```'
-            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Mark job failed if build failed
