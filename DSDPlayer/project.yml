@@ -5,6 +5,11 @@ options:
     iOS: "17.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
+  # Pin pbxproj format so the generated project can be read by Xcode
+  # 14+ (macos-14 GitHub runners ship 15.x by default). Newer XcodeGen
+  # defaults to objectVersion 77 (Xcode 16.3+), which produces an
+  # unreadable project on older Xcode.
+  objectVersion: 56
 
 targets:
   DSDPlayer:
