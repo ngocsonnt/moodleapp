@@ -1,0 +1,7 @@
+DSDPlayer.xcodeproj/
+DSDPlayer.xcworkspace/
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.DS_Store
